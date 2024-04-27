@@ -1,4 +1,10 @@
-import { type Block, type Data, type Value, isSignal, isValue } from "./types";
+import {
+  type Data,
+  type SemiData,
+  type SignalData,
+  isSignal,
+  isValue,
+} from "./types";
 import { effect, resolve } from "./signal";
 
 interface Context {
@@ -7,7 +13,10 @@ interface Context {
   inline: "inline" | "wrap" | false;
 }
 
-const getHandlers = (values: Record<string, Data>) => {
+const isInline = (data: SemiData) =>
+  isValue(data) || (isSignal(data.values.input) && data.values.input.set);
+
+const getHandlers = (values: Record<string, SignalData>) => {
   const res: any = {};
 
   if (isSignal(values.input) && values.input.set) {
@@ -19,31 +28,29 @@ const getHandlers = (values: Record<string, Data>) => {
 };
 
 const getTag = (
-  values: Record<string, Data>,
-  handlers: Record<string, (data: Data) => void>
+  values: Record<string, SignalData>,
+  handlers: Record<string, (data: SignalData) => void>
 ) => {
   if (handlers.oninput) return "input";
   return "div";
 };
 
 const getItems = (
-  items: (Value | Block)[],
-  values: Record<string, Data>
-): (Value | Block)[] => {
+  items: SemiData[],
+  values: Record<string, SignalData>
+): SemiData[] => {
   const flow = values.flow && resolve(values.flow);
   if ((flow && flow !== "inline") || (values.gap && resolve(values.gap))) {
     return items.map((x) =>
-      typeof x === "number" || typeof x === "string"
-        ? { __type: "block", values: {}, items: [x] }
-        : x
+      isInline(x) ? { __type: "block", values: {}, items: [x] } : x
     );
   }
   return items;
 };
 
 const getContext = (
-  values: Record<string, Data>,
-  items: (Value | Block)[],
+  values: Record<string, SignalData>,
+  items: SemiData[],
   context: Context
 ): Context => {
   const size = values.size && resolve(values.size);
@@ -54,14 +61,13 @@ const getContext = (
     line: (line as number) || context.line,
     inline: context.inline
       ? "inline"
-      : flow === "inline" ||
-          items.some((x) => typeof x === "number" || typeof x === "string")
+      : flow === "inline" || items.some((x) => isInline(x))
         ? "wrap"
         : false,
   };
 };
 
-const getProps = (values: Record<string, Value | Block>, handlers: any) => {
+const getProps = (values: Record<string, Data>, handlers: any) => {
   const res: any = { ...handlers };
 
   if (handlers.oninput) {
@@ -78,7 +84,7 @@ const directions = (v) => [
   v.values.bottom ?? v.items[2] ?? v.items[0],
   v.values.left ?? v.items[1] ?? v.items[0],
 ];
-const getStyle = (values: Record<string, Value | Block>, context: Context) => {
+const getStyle = (values: Record<string, Data>, context: Context) => {
   const res: any = {};
 
   if (context.inline === "inline") {
@@ -152,7 +158,7 @@ const updateChildren = (node, children) => {
   }
 };
 
-const updateNode = (effect, node, data: Value | Block, context: Context) => {
+const updateNode = (effect, node, data: SemiData, context: Context) => {
   if (isValue(data)) {
     const text = `${data}`;
     const res =
@@ -206,7 +212,7 @@ const updateNode = (effect, node, data: Value | Block, context: Context) => {
   return res;
 };
 
-export default (root, data: Data, size = 16, line = 1.5) => {
+export default (root, data: SignalData, size = 16, line = 1.5) => {
   effect((effect) => {
     updateChildren(root, [
       updateNode(effect, root.childNodes[0], resolve(data), {

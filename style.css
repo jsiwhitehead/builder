@@ -22,3 +22,12 @@ body,
 #app {
   height: 100%;
 }
+
+input,
+button,
+textarea,
+select {
+  font: inherit;
+  border: none;
+  outline: none;
+}

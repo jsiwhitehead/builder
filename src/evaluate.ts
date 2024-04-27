@@ -1,40 +1,34 @@
 import { computed, resolve } from "./signal";
 import {
-  type Code,
-  type Data,
-  isCodeAssign,
-  isCodeBlock,
+  type SignalCode,
+  type SignalData,
+  isBlock,
+  isScope,
   isSignal,
   isValue,
 } from "./types";
 
-const evaluate = (code: Code, context: Record<string, Data>): Data => {
+const evaluate = (
+  code: SignalCode,
+  context: Record<string, SignalData>
+): SignalData => {
   if (isSignal(code)) {
-    return computed(() => evaluate(resolve(code) as Code, context));
+    return computed(() => evaluate(resolve(code), context));
   }
 
   if (isValue(code)) {
     return code;
   }
 
-  // if (code.values.type === "reference") {
-  //   return context[code.values.value];
-  // }
-
-  if (isCodeBlock(code)) {
-    const res: Data = {
-      __type: "block",
-      values: {},
-      items: [],
-    };
-    for (const x of code.items) {
-      if (isCodeAssign(x)) {
-        res.values[x.values.key] = evaluate(x.values.value, context);
-      } else {
-        res.items.push(evaluate(x, context));
-      }
-    }
-    return res;
+  if (isScope(code) || isBlock(code)) {
+    const values = Object.keys(code.values).reduce(
+      (res, k) => ({ ...res, [k]: evaluate(code.values[k], context) }),
+      {}
+    );
+    const newContext = { ...context, ...values };
+    const items = code.items.map((x) => evaluate(x, newContext));
+    if (isScope(code)) return items[0];
+    return { values, items };
   }
 
   throw new Error();

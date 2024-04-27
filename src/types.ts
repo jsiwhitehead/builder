@@ -1,59 +1,62 @@
-// BASE TYPE
-
-export interface Block {
-  __type: "block";
-  values: Record<string, Data>;
-  items: Data[];
-}
-
-export interface Signal {
-  __type: "signal";
-  get: () => Data;
-  set?: (value: Data) => void;
-}
+// DATA
 
 export type Value = boolean | number | string;
 
-export type Data = Value | Block | Signal;
-
-export const isValue = (data: Data): data is Value => {
-  return typeof data !== "object";
-};
-
-export const isSignal = (data: Data): data is Signal => {
-  return typeof data === "object" && data.__type === "signal";
-};
-
-// CODE TYPE
-
-interface CodeAssign extends Block {
-  values: { type: "assign"; key: string; value: Code };
-  items: [];
+export interface Block<T> {
+  values: Record<string, T>;
+  items: T[];
 }
 
-interface CodeBlock extends Block {
-  values: { type: "block" };
-  items: (Code | CodeAssign)[];
+export interface Signal<T> {
+  type: "signal";
+  get: () => T;
+  set?: (value: T) => void;
 }
 
-export type Code = Value | CodeBlock | Signal;
+export type Data = Value | Block<Data>;
 
-export const isCodeBlock = (code: Code): code is CodeBlock => {
-  return (
-    typeof code === "object" &&
-    code.__type === "block" &&
-    code.values.type === "block"
-  );
-};
+export type SemiData = Value | Block<SignalData>;
 
-export const isCodeAssign = (code: Code | CodeAssign): code is CodeAssign => {
-  return (
-    typeof code === "object" &&
-    code.__type === "block" &&
-    code.values.type === "assign"
-  );
-};
+export type SignalData = SemiData | Signal<SignalData>;
 
-export const isCode = (code: Code | CodeAssign): code is Code => {
-  return !isCodeAssign(code);
-};
+// CODE
+
+export interface Scope<T> {
+  type: "scope";
+  values: Record<string, T>;
+  items: T[];
+}
+
+export type Code = Value | Block<Code> | Scope<Code>;
+
+export type SemiCode = Value | Block<SignalCode> | Scope<SignalCode>;
+
+export type SignalCode = SemiCode | Signal<SignalCode>;
+
+// TESTS
+
+export function isValue(
+  x: Data | SemiData | SignalData | Code | SemiCode | SignalCode
+): x is Value {
+  return typeof x !== "object";
+}
+
+export function isBlock(x: Data): x is Block<Data>;
+export function isBlock(x: Code): x is Block<Code>;
+export function isBlock(x: SemiData | SignalData): x is Block<SignalData>;
+export function isBlock(x: SemiCode | SignalCode): x is Block<SignalCode>;
+export function isBlock(x) {
+  return typeof x === "object" && !x.type;
+}
+
+export function isSignal(x: SignalData): x is Signal<SignalData>;
+export function isSignal(x: SignalCode): x is Signal<SignalCode>;
+export function isSignal(x) {
+  return typeof x === "object" && x.type === "signal";
+}
+
+export function isScope(x: Code): x is Scope<Code>;
+export function isScope(x: SemiCode | SignalCode): x is Scope<SignalCode>;
+export function isScope(x) {
+  return typeof x === "object" && x.type === "scope";
+}

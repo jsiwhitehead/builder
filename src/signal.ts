@@ -7,16 +7,19 @@ import {
 import {
   isSignal,
   isValue,
-  type Block,
+  type Code,
   type Data,
+  type SemiCode,
+  type SemiData,
   type Signal,
-  type Value,
+  type SignalCode,
+  type SignalData,
 } from "./types";
 
-export const signal = (initial: Data): Signal => {
-  const s = baseSignal<Data>(initial);
+export const signal = <T>(initial: T): Signal<T> => {
+  const s = baseSignal<T>(initial);
   return {
-    __type: "signal",
+    type: "signal",
     get: () => s.value,
     set: (v) => {
       s.value = v;
@@ -24,10 +27,10 @@ export const signal = (initial: Data): Signal => {
   };
 };
 
-export const computed = (func: () => Data): Signal => {
-  const s = baseComputed<Data>(func);
+export const computed = <T>(func: () => T): Signal<T> => {
+  const s = baseComputed<T>(func);
   return {
-    __type: "signal",
+    type: "signal",
     get: () => s.value,
   };
 };
@@ -43,16 +46,20 @@ export const effect = (run) =>
     };
   });
 
-export const resolve = (data: Data, deep?: true): Value | Block => {
+export function resolve(data: SignalData): SemiData;
+export function resolve(data: SignalCode): SemiCode;
+export function resolve(data: SignalData, deep: true): Data;
+export function resolve(data: SignalCode, deep: true): Code;
+export function resolve(data, deep?) {
   if (data === undefined) throw new Error();
   const v = isSignal(data) ? resolve(data.get()) : data;
   if (!deep || isValue(v)) return v;
   return {
-    __type: "block",
+    ...v,
     values: Object.keys(v.values).reduce(
       (res, k) => ({ ...res, [k]: resolve(v.values[k], true) }),
       {}
     ),
     items: v.items.map((x) => resolve(x, true)),
   };
-};
+}
