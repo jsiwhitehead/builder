@@ -1,7 +1,7 @@
-// import evaluate from "./evaluate";
 import evaluate from "./evaluate";
 import map from "./map";
 import render from "./render";
+import { signal } from "./signal";
 import type { Code } from "./types";
 
 const code: Code = {
@@ -13,11 +13,7 @@ const code: Code = {
       values: {
         type: "assign",
         key: "gap",
-        value: {
-          __type: "block",
-          values: { type: "value", value: "20" },
-          items: [],
-        },
+        value: 20,
       },
       items: [],
     },
@@ -29,18 +25,7 @@ const code: Code = {
         value: {
           __type: "block",
           values: { type: "block" },
-          items: [
-            {
-              __type: "block",
-              values: { type: "value", value: "10" },
-              items: [],
-            },
-            {
-              __type: "block",
-              values: { type: "value", value: "20" },
-              items: [],
-            },
-          ],
+          items: [10, 20],
         },
       },
       items: [],
@@ -50,19 +35,11 @@ const code: Code = {
       values: {
         type: "assign",
         key: "bold",
-        value: {
-          __type: "block",
-          values: { type: "value", value: "yes" },
-          items: [],
-        },
+        value: "yes",
       },
       items: [],
     },
-    {
-      __type: "block",
-      values: { type: "value", value: "Hello world!" },
-      items: [],
-    },
+    signal("Hello world!"),
     {
       __type: "block",
       values: { type: "block" },
@@ -72,19 +49,11 @@ const code: Code = {
           values: {
             type: "assign",
             key: "color",
-            value: {
-              __type: "block",
-              values: { type: "value", value: "red" },
-              items: [],
-            },
+            value: "red",
           },
           items: [],
         },
-        {
-          __type: "block",
-          values: { type: "value", value: "Hello world!" },
-          items: [],
-        },
+        "Hello world!",
       ],
     },
   ],

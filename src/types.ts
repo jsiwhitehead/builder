@@ -2,30 +2,29 @@
 
 export interface Block {
   __type: "block";
-  values: { [key: string]: Data };
+  values: Record<string, Data>;
   items: Data[];
 }
 
 export interface Signal {
   __type: "signal";
   get: () => Data;
-  set: (value: Data) => {};
+  set?: (value: Data) => void;
 }
 
 export type Value = boolean | number | string;
 
 export type Data = Value | Block | Signal;
 
+export const isValue = (data: Data): data is Value => {
+  return typeof data !== "object";
+};
+
 export const isSignal = (data: Data): data is Signal => {
   return typeof data === "object" && data.__type === "signal";
 };
 
 // CODE TYPE
-
-interface CodeValue extends Block {
-  values: { type: "value"; value: string };
-  items: [];
-}
 
 interface CodeAssign extends Block {
   values: { type: "assign"; key: string; value: Code };
@@ -37,20 +36,24 @@ interface CodeBlock extends Block {
   items: (Code | CodeAssign)[];
 }
 
-export type Code = CodeValue | CodeBlock;
-
-export const isCodeValue = (code: Code): code is CodeValue => {
-  return code.__type === "block" && code.values.type === "value";
-};
+export type Code = Value | CodeBlock | Signal;
 
 export const isCodeBlock = (code: Code): code is CodeBlock => {
-  return code.__type === "block" && code.values.type === "block";
+  return (
+    typeof code === "object" &&
+    code.__type === "block" &&
+    code.values.type === "block"
+  );
 };
 
 export const isCodeAssign = (code: Code | CodeAssign): code is CodeAssign => {
-  return code.__type === "block" && code.values.type === "assign";
+  return (
+    typeof code === "object" &&
+    code.__type === "block" &&
+    code.values.type === "assign"
+  );
 };
 
 export const isCode = (code: Code | CodeAssign): code is Code => {
-  return code.__type === "block" && code.values.type !== "assign";
+  return !isCodeAssign(code);
 };

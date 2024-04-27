@@ -1,4 +1,5 @@
-import type { Block, Data } from "./types";
+import { type Block, type Data, type Value, isSignal, isValue } from "./types";
+import { effect, resolve } from "./signal";
 
 interface Context {
   size: number;
@@ -6,33 +7,78 @@ interface Context {
   inline: "inline" | "wrap" | false;
 }
 
-const getNumeric = (x) => (x && x < 1 ? `${x * 100}%` : `${x || 0}px`);
+const getHandlers = (values: Record<string, Data>) => {
+  const res: any = {};
 
-const directions = (v) => [
-  v.values.top ?? v.items[0],
-  v.values.right ?? v.items[3] ?? v.items[1] ?? v.items[0],
-  v.values.bottom ?? v.items[2] ?? v.items[0],
-  v.values.left ?? v.items[1] ?? v.items[0],
-];
+  if (isSignal(values.input) && values.input.set) {
+    const input = values.input.set;
+    res.oninput = (e) => input(e.target.value);
+  }
+
+  return res;
+};
+
+const getTag = (
+  values: Record<string, Data>,
+  handlers: Record<string, (data: Data) => void>
+) => {
+  if (handlers.oninput) return "input";
+  return "div";
+};
+
+const getItems = (
+  items: (Value | Block)[],
+  values: Record<string, Data>
+): (Value | Block)[] => {
+  const flow = values.flow && resolve(values.flow);
+  if ((flow && flow !== "inline") || (values.gap && resolve(values.gap))) {
+    return items.map((x) =>
+      typeof x === "number" || typeof x === "string"
+        ? { __type: "block", values: {}, items: [x] }
+        : x
+    );
+  }
+  return items;
+};
 
 const getContext = (
-  values: { [key: string]: Data },
-  items: Data[],
+  values: Record<string, Data>,
+  items: (Value | Block)[],
   context: Context
 ): Context => {
+  const size = values.size && resolve(values.size);
+  const line = values.line && resolve(values.line);
+  const flow = values.flow && resolve(values.flow);
   return {
-    size: (values.size as number) || context.size,
-    line: (values.line as number) || context.line,
+    size: (size as number) || context.size,
+    line: (line as number) || context.line,
     inline: context.inline
       ? "inline"
-      : values.flow === "inline" ||
+      : flow === "inline" ||
           items.some((x) => typeof x === "number" || typeof x === "string")
         ? "wrap"
         : false,
   };
 };
 
-const getStyle = (values: { [key: string]: Data }, context: Context) => {
+const getProps = (values: Record<string, Value | Block>, handlers: any) => {
+  const res: any = { ...handlers };
+
+  if (handlers.oninput) {
+    res.value = values.input || "";
+  }
+
+  return res;
+};
+
+const getNumeric = (x) => (x && x < 1 ? `${x * 100}%` : `${x || 0}px`);
+const directions = (v) => [
+  v.values.top ?? v.items[0],
+  v.values.right ?? v.items[3] ?? v.items[1] ?? v.items[0],
+  v.values.bottom ?? v.items[2] ?? v.items[0],
+  v.values.left ?? v.items[1] ?? v.items[0],
+];
+const getStyle = (values: Record<string, Value | Block>, context: Context) => {
   const res: any = {};
 
   if (context.inline === "inline") {
@@ -48,7 +94,6 @@ const getStyle = (values: { [key: string]: Data }, context: Context) => {
   } else {
     res.display = "flex";
     res.flexDirection = values.flow || "column";
-    // res.width = "100%";
   }
   if (values.gap) {
     res.gap = `${values.gap}px`;
@@ -91,40 +136,84 @@ const getStyle = (values: { [key: string]: Data }, context: Context) => {
   return res;
 };
 
-const getItems = (data: Block): Data[] => {
-  if ((data.values.flow && data.values.flow !== "inline") || data.values.gap) {
-    return data.items.map((x) =>
-      typeof x === "number" || typeof x === "string"
-        ? { __type: "block", values: {}, items: [x] }
-        : x
-    );
+const onChanged = (prev, next, func) => {
+  for (const key in { ...prev, ...next }) {
+    if (next[key] !== prev) func(key, next[key], prev[key]);
   }
-  return data.items;
+  return next;
 };
 
-const getNode = (data: Data, context: Context) => {
-  if (typeof data !== "object") {
-    return document.createTextNode(`${data}`);
+const updateChildren = (node, children) => {
+  if (
+    node.childNodes.length !== children.length ||
+    [...node.childNodes].some((c, i) => children[i] !== c)
+  ) {
+    node.replaceChildren(...children);
+  }
+};
+
+const updateNode = (effect, node, data: Value | Block, context: Context) => {
+  if (isValue(data)) {
+    const text = `${data}`;
+    const res =
+      node?.nodeName === "#text" ? node : document.createTextNode(text);
+    if (res.textContent !== text) res.textContent = text;
+    return res;
   }
 
-  if (data.__type === "signal") {
-    throw new Error();
-  }
-
-  const items = getItems(data);
+  const handlers = getHandlers(data.values);
+  const tag = getTag(data.values, handlers);
+  const items = getItems(
+    data.items.map((x) => resolve(x)),
+    data.values
+  );
   const newContext = getContext(data.values, items, context);
-  const node = document.createElement("div");
+  const res =
+    node?.nodeName.toLowerCase() === tag ? node : document.createElement(tag);
 
-  const style = getStyle(data.values, newContext);
-  for (const key in style) node.style[key] = style[key];
+  effect(() => {
+    const values = Object.keys(data.values).reduce(
+      (res, k) => ({ ...res, [k]: resolve(data.values[k], true) }),
+      {}
+    );
+    res.__props = onChanged(
+      res.__props || {},
+      getProps(values, handlers),
+      (k, v) => {
+        if (k === "focus") {
+          if (v) setTimeout(() => res.focus());
+        } else {
+          res[k] = v === null || v === undefined ? null : v;
+        }
+      }
+    );
+    res.__style = onChanged(
+      res.__style || {},
+      getStyle(values, newContext),
+      (k, v) => {
+        res.style[k] = v || null;
+      }
+    );
+  });
 
-  const children = getItems(data).map((x) => getNode(x, newContext));
-  node.replaceChildren(...children);
+  effect(() => {
+    updateChildren(
+      res,
+      items.map((x, i) => updateNode(effect, res.childNodes[i], x, newContext))
+    );
+  });
 
-  return node;
+  return res;
 };
 
 export default (root, data: Data, size = 16, line = 1.5) => {
-  const node = getNode(data, { size, line, inline: false });
-  root.replaceChildren(node);
+  effect((effect) => {
+    updateChildren(root, [
+      updateNode(effect, root.childNodes[0], resolve(data), {
+        size,
+        line,
+        inline: false,
+      }),
+    ]);
+  });
 };

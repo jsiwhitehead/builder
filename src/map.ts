@@ -1,10 +1,12 @@
+// import { computed, resolve } from "./signal";
 import {
   type Code,
   type Data,
   isCode,
   isCodeAssign,
   isCodeBlock,
-  isCodeValue,
+  isSignal,
+  isValue,
 } from "./types";
 
 const b = (values, ...items): Data => ({
@@ -14,9 +16,15 @@ const b = (values, ...items): Data => ({
 });
 
 const map = (code: Code): Data => {
-  if (isCodeValue(code)) {
-    return code.values.value;
+  if (isSignal(code)) {
+    // return computed(() => map(resolve(code) as Code));
+    return b({ input: code });
   }
+
+  if (isValue(code)) {
+    return code;
+  }
+
   if (isCodeBlock(code)) {
     const assignItems = code.items.filter(isCodeAssign);
     const otherItems = code.items.filter(isCode);
