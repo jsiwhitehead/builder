@@ -1,0 +1,16 @@
+{
+  "name": "builder",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@preact/signals-core": "^1.6.0"
+  },
+  "devDependencies": {
+    "prettier": "^3.2.5",
+    "vite": "^5.2.9"
+  }
+}
