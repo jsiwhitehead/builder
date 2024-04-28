@@ -80,8 +80,8 @@ const mapBlock = (code, border) => {
                 return map(
                   wrap(
                     x,
-                    (v) => (isValue(v) ? escapeText(`${v}`) : v),
-                    (v) => (isValue(v) ? unescapeText(`${v}`) : v)
+                    (v) => (isValue(v) ? escapeText(v) : v),
+                    (v) => (isValue(v) ? unescapeText(v) : v)
                   )
                 );
               }
@@ -89,11 +89,11 @@ const mapBlock = (code, border) => {
                 return map(
                   computed(() => {
                     const v = resolve(x);
-                    return isValue(v) ? escapeText(`${v}`) : v;
+                    return isValue(v) ? escapeText(v) : v;
                   })
                 );
               }
-              return map(isValue(x) ? escapeText(`${x}`) : x);
+              return map(isValue(x) ? escapeText(x) : x);
             })
           ),
         ]
@@ -103,7 +103,7 @@ const mapBlock = (code, border) => {
 
 const map = (code: SignalCode): SignalCode => {
   if (isAtom(code)) {
-    return b({ input: "yes" }, code);
+    return code;
   }
 
   if (isComputed(code)) {

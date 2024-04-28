@@ -5,7 +5,6 @@ import {
 } from "@preact/signals-core";
 
 import {
-  isAtom,
   isComputed,
   isSignal,
   isValue,
@@ -83,10 +82,10 @@ export function resolve(data, deep?) {
   };
 }
 
-export function resolveToAtom(data: SignalData): Atom<SignalData> | undefined;
-export function resolveToAtom(data: SignalCode): Atom<SignalCode> | undefined;
+export function resolveToAtom(data: SignalData): SignalData;
+export function resolveToAtom(data: SignalCode): SignalCode;
 export function resolveToAtom(data) {
   if (data === undefined) throw new Error();
   const v = isComputed(data) ? resolveToAtom(data.get()) : data;
-  return isAtom(v) ? v : undefined;
+  return v;
 }

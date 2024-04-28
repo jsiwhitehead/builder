@@ -9,14 +9,20 @@ import {
   isScope,
   isSignal,
   isValue,
+  valueToString,
 } from "./types";
 
-export const escapeText = (s) => s.replace(/{/g, "\\{");
-export const unescapeText = (s) => s.replace(/\\{/g, "{");
+export const escapeText = (v) =>
+  typeof v === "string" ? v.replace(/{/g, "\\{") : v;
+export const unescapeText = (v) =>
+  typeof v === "string" ? v.replace(/\\{/g, "{") : v;
 
-export const textToCode = (s) => `'${s.replace(/'/g, "\\'")}'`;
-export const codeToText = (s) => s.slice(1, -1).replace(/\\'/, "'");
+export const textToCode = (v) =>
+  typeof v === "string" ? `'${v.replace(/'/g, "\\'")}'` : v;
+export const codeToText = (v) =>
+  typeof v === "string" ? v.slice(1, -1).replace(/\\'/, "'") : v;
 
+const isTruthy = (x) => !(x === false || x === null);
 const unary = {
   "-": (a) => -a,
   "!": (a) => !a,
@@ -36,7 +42,8 @@ const binary = {
   "^": (a, b) => a ** b,
 };
 const doOperation = (op, vals) => {
-  if (op === "concat") return vals.join("");
+  if (op === "concat") return vals.map(valueToString).join("");
+  if (op === "ternary") return isTruthy(vals[0]) ? vals[1] : vals[2];
   return (vals.length === 2 ? binary : unary)[op](...vals);
 };
 
@@ -69,16 +76,17 @@ const evaluate = (
 ): SignalData => {
   if (isAtom(code)) {
     const canWrap = computed(() => {
-      const s = `${resolve(code)}`;
-      const ast = parse(isText ? textToCode(s) : s);
-      return ast.type === "value";
+      const v = resolve(code);
+      if (typeof v !== "string") return true;
+      const ast = parse(isText ? textToCode(v) : v);
+      return ast.type === "value" && typeof ast.value === "string";
     });
     return computed(() => {
       if (resolve(canWrap)) {
         return wrap(
           code,
-          (v) => (isText ? unescapeText(`${v}`) : codeToText(`${v}`)),
-          (v) => (isText ? escapeText(`${v}`) : textToCode(`${v}`))
+          (v) => (isText ? unescapeText(v) : codeToText(v)),
+          (v) => (isText ? escapeText(v) : textToCode(v))
         );
       }
       return evaluate(resolve(code), context, isText);
@@ -90,9 +98,11 @@ const evaluate = (
   }
 
   if (isValue(code)) {
-    const s = `${code}`;
-    const ast = parse(isText ? `'${s.replace(/'/g, "\\'")}'` : s);
-    return evaluateAST(ast, context);
+    if (typeof code === "string") {
+      const ast = parse(isText ? textToCode(code) : code);
+      return evaluateAST(ast, context);
+    }
+    return code;
   }
 
   if (isScope(code) || isBlock(code)) {

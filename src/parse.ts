@@ -6,7 +6,11 @@ const grammar = String.raw`Maraca {
     = space* value? space*
 
   value
-    = or
+    = ternary
+
+  ternary
+    = ternary space* "?" space* or space* ":" space* or -- ternary
+    | or
 
   or
     = or space* "|" space* and -- or
@@ -90,6 +94,12 @@ s.addAttribute("ast", {
   start: (_1, a, _2) => a.ast[0],
 
   value: (a) => a.ast,
+
+  ternary_ternary: (a, _1, _2, _3, b, _4, _5, _6, c) => ({
+    type: "operation",
+    operation: "ternary",
+    nodes: [a.ast, b.ast, c.ast],
+  }),
 
   or_or: binary,
   or: (a) => a.ast,

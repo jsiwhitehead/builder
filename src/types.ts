@@ -77,3 +77,8 @@ export function isScope(x: SemiCode | SignalCode): x is Scope<SignalCode>;
 export function isScope(x) {
   return typeof x === "object" && x.type === "scope";
 }
+
+// UTIL
+
+export const valueToString = (v) =>
+  typeof v === "boolean" ? (v ? "yes" : "no") : `${v}`;
