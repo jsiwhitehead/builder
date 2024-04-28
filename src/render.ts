@@ -1,11 +1,12 @@
 import {
+  type Atom,
   type Data,
   type SemiData,
   type SignalData,
-  isSignal,
+  isAtom,
   isValue,
 } from "./types";
-import { effect, resolve } from "./signal";
+import { effect, resolve, resolveToAtom } from "./signal";
 
 interface Context {
   size: number;
@@ -13,26 +14,19 @@ interface Context {
   inline: "inline" | "wrap" | false;
 }
 
-const isInline = (data: SemiData) =>
-  isValue(data) || (isSignal(data.values.input) && data.values.input.set);
+const isInline = (data: SemiData) => isValue(data) || isAtom(data.values.input);
 
-const getHandlers = (values: Record<string, SignalData>) => {
+const getHandlers = (
+  values: Record<string, SignalData>,
+  inputAtom?: Atom<SignalData>
+) => {
   const res: any = {};
 
-  if (isSignal(values.input) && values.input.set) {
-    const input = values.input.set;
-    res.oninput = (e) => input(e.target.value);
+  if (inputAtom) {
+    res.oninput = (e) => inputAtom.set(e.target.value);
   }
 
   return res;
-};
-
-const getTag = (
-  values: Record<string, SignalData>,
-  handlers: Record<string, (data: SignalData) => void>
-) => {
-  if (handlers.oninput) return "input";
-  return "div";
 };
 
 const getItems = (
@@ -67,11 +61,15 @@ const getContext = (
   };
 };
 
-const getProps = (values: Record<string, Data>, handlers: any) => {
+const getProps = (values: Record<string, Data>, handlers: any, node) => {
   const res: any = { ...handlers };
 
   if (handlers.oninput) {
-    res.value = values.input || "";
+    res.rows = "1";
+    setTimeout(() => {
+      node.style.height = "auto";
+      node.style.height = node.scrollHeight + "px";
+    });
   }
 
   return res;
@@ -84,11 +82,16 @@ const directions = (v) => [
   v.values.bottom ?? v.items[2] ?? v.items[0],
   v.values.left ?? v.items[1] ?? v.items[0],
 ];
-const getStyle = (values: Record<string, Data>, context: Context) => {
+const getStyle = (
+  values: Record<string, Data>,
+  handlers,
+  node,
+  context: Context
+) => {
   const res: any = {};
 
   if (context.inline === "inline") {
-    res.display = "inline";
+    // res.display = "inline";
   } else if (context.inline === "wrap") {
     const gap = ((context.line - 1) * context.size) / 2;
     res.marginTop = `${-gap}px`;
@@ -106,6 +109,11 @@ const getStyle = (values: Record<string, Data>, context: Context) => {
   }
   if (values.width) {
     res.width = values.width;
+  }
+
+  if (handlers.oninput) {
+    res.height = node.scrollHeight + "px";
+    res.overflowY = "hidden";
   }
 
   res.fontSize = `${context.size}px`;
@@ -159,16 +167,19 @@ const updateChildren = (node, children) => {
 };
 
 const updateNode = (effect, node, data: SemiData, context: Context) => {
-  if (isValue(data)) {
-    const text = `${data}`;
+  if (isValue(data) || (data.values.input && !resolveToAtom(data.items[0]))) {
+    const text = `${isValue(data) ? data : resolve(data.values.input)}`;
     const res =
       node?.nodeName === "#text" ? node : document.createTextNode(text);
     if (res.textContent !== text) res.textContent = text;
     return res;
   }
 
-  const handlers = getHandlers(data.values);
-  const tag = getTag(data.values, handlers);
+  const inputAtom = data.values.input
+    ? resolveToAtom(data.items[0])
+    : undefined;
+
+  const tag = inputAtom ? "textarea" : "div";
   const items = getItems(
     data.items.map((x) => resolve(x)),
     data.values
@@ -176,6 +187,7 @@ const updateNode = (effect, node, data: SemiData, context: Context) => {
   const newContext = getContext(data.values, items, context);
   const res =
     node?.nodeName.toLowerCase() === tag ? node : document.createElement(tag);
+  const handlers = getHandlers(data.values, inputAtom);
 
   effect(() => {
     const values = Object.keys(data.values).reduce(
@@ -184,7 +196,7 @@ const updateNode = (effect, node, data: SemiData, context: Context) => {
     );
     res.__props = onChanged(
       res.__props || {},
-      getProps(values, handlers),
+      getProps(values, handlers, res),
       (k, v) => {
         if (k === "focus") {
           if (v) setTimeout(() => res.focus());
@@ -195,7 +207,7 @@ const updateNode = (effect, node, data: SemiData, context: Context) => {
     );
     res.__style = onChanged(
       res.__style || {},
-      getStyle(values, newContext),
+      getStyle(values, handlers, res, newContext),
       (k, v) => {
         res.style[k] = v || null;
       }

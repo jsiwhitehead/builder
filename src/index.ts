@@ -1,12 +1,12 @@
 import evaluate from "./evaluate";
 import map from "./map";
 import render from "./render";
-import { signal } from "./signal";
+import { atom } from "./signal";
 import type { SignalCode } from "./types";
 
 const code: SignalCode = {
   type: "scope",
-  values: { x: "100" },
+  values: { text: atom<SignalCode>("'Hello world!'") },
   items: [
     {
       values: {
@@ -14,14 +14,7 @@ const code: SignalCode = {
         pad: { values: {}, items: ["10", "20"] },
         bold: "yes",
       },
-      items: [
-        signal<SignalCode>("Hello world!"),
-        "Hi",
-        {
-          values: { color: "red" },
-          items: ["Hello World!"],
-        },
-      ],
+      items: ["Hello {10 + 10}", "{text}"],
     },
   ],
 };
@@ -35,7 +28,7 @@ render(
       flow: "row",
       gap: 300,
     },
-    items: [map(code), evaluate(code, {})],
+    items: [evaluate(map(code), {}, true), evaluate(code, {}, true)],
   },
   14
 );

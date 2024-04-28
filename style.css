@@ -27,7 +27,9 @@ input,
 button,
 textarea,
 select {
+  display: flex;
   font: inherit;
   border: none;
   outline: none;
+  resize: none;
 }

@@ -7,10 +7,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@preact/signals-core": "^1.6.0"
+    "@preact/signals-core": "^1.6.0",
+    "ohm-js": "^17.1.0"
   },
   "devDependencies": {
     "prettier": "^3.2.5",
-    "vite": "^5.2.9"
+    "vite": "^5.2.10"
   }
 }

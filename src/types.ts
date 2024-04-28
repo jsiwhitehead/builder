@@ -7,17 +7,22 @@ export interface Block<T> {
   items: T[];
 }
 
-export interface Signal<T> {
+export interface Computed<T> {
   type: "signal";
   get: () => T;
-  set?: (value: T) => void;
 }
+
+export interface Atom<T> extends Computed<T> {
+  set: (value: T) => void;
+}
+
+export type Signal<T> = Computed<T> | Atom<T>;
 
 export type Data = Value | Block<Data>;
 
 export type SemiData = Value | Block<SignalData>;
 
-export type SignalData = SemiData | Signal<SignalData>;
+export type SignalData = SemiData | Computed<SignalData> | Atom<SignalData>;
 
 // CODE
 
@@ -31,7 +36,7 @@ export type Code = Value | Block<Code> | Scope<Code>;
 
 export type SemiCode = Value | Block<SignalCode> | Scope<SignalCode>;
 
-export type SignalCode = SemiCode | Signal<SignalCode>;
+export type SignalCode = SemiCode | Computed<SignalCode> | Atom<SignalCode>;
 
 // TESTS
 
@@ -47,6 +52,18 @@ export function isBlock(x: SemiData | SignalData): x is Block<SignalData>;
 export function isBlock(x: SemiCode | SignalCode): x is Block<SignalCode>;
 export function isBlock(x) {
   return typeof x === "object" && !x.type;
+}
+
+export function isComputed(x: SignalData): x is Computed<SignalData>;
+export function isComputed(x: SignalCode): x is Computed<SignalCode>;
+export function isComputed(x) {
+  return typeof x === "object" && x.type === "signal" && !x.set;
+}
+
+export function isAtom(x: SignalData): x is Atom<SignalData>;
+export function isAtom(x: SignalCode): x is Atom<SignalCode>;
+export function isAtom(x) {
+  return typeof x === "object" && x.type === "signal" && x.set;
 }
 
 export function isSignal(x: SignalData): x is Signal<SignalData>;

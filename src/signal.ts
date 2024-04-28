@@ -5,9 +5,13 @@ import {
 } from "@preact/signals-core";
 
 import {
+  isAtom,
+  isComputed,
   isSignal,
   isValue,
+  type Atom,
   type Code,
+  type Computed,
   type Data,
   type SemiCode,
   type SemiData,
@@ -16,7 +20,7 @@ import {
   type SignalData,
 } from "./types";
 
-export const signal = <T>(initial: T): Signal<T> => {
+export const atom = <T>(initial: T): Atom<T> => {
   const s = baseSignal<T>(initial);
   return {
     type: "signal",
@@ -27,7 +31,21 @@ export const signal = <T>(initial: T): Signal<T> => {
   };
 };
 
-export const computed = <T>(func: () => T): Signal<T> => {
+export const wrap = <T, U>(
+  signal: Atom<T>,
+  wrap: (v: T) => U,
+  unwrap: (v: U) => T
+): Atom<U> => {
+  return {
+    type: "signal",
+    get: () => wrap(signal.get()),
+    set: (v) => {
+      signal.set!(unwrap(v));
+    },
+  };
+};
+
+export const computed = <T>(func: () => T): Computed<T> => {
   const s = baseComputed<T>(func);
   return {
     type: "signal",
@@ -46,6 +64,7 @@ export const effect = (run) =>
     };
   });
 
+export function resolve<T>(data: Signal<T>): T;
 export function resolve(data: SignalData): SemiData;
 export function resolve(data: SignalCode): SemiCode;
 export function resolve(data: SignalData, deep: true): Data;
@@ -62,4 +81,12 @@ export function resolve(data, deep?) {
     ),
     items: v.items.map((x) => resolve(x, true)),
   };
+}
+
+export function resolveToAtom(data: SignalData): Atom<SignalData> | undefined;
+export function resolveToAtom(data: SignalCode): Atom<SignalCode> | undefined;
+export function resolveToAtom(data) {
+  if (data === undefined) throw new Error();
+  const v = isComputed(data) ? resolveToAtom(data.get()) : data;
+  return isAtom(v) ? v : undefined;
 }
