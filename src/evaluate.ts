@@ -47,7 +47,7 @@ const doOperation = (op, vals) => {
   return (vals.length === 2 ? binary : unary)[op](...vals);
 };
 
-const evaluateAST = (ast, context: Record<string, SignalData>) => {
+const evaluateAST = (ast, context: Record<string, SignalData | undefined>) => {
   if (ast.type === "value") {
     return ast.value;
   }
@@ -71,14 +71,15 @@ const evaluateAST = (ast, context: Record<string, SignalData>) => {
 
 const evaluate = (
   code: SignalCode,
-  context: Record<string, SignalData>,
+  context: Record<string, SignalData | undefined>,
   isText: boolean
-): SignalData => {
+): SignalData | undefined => {
   if (isAtom(code)) {
     const canWrap = computed(() => {
       const v = resolve(code);
       if (typeof v !== "string") return true;
       const ast = parse(isText ? textToCode(v) : v);
+      if (ast === null) return false;
       return ast.type === "value" && typeof ast.value === "string";
     });
     return computed(() => {
@@ -90,7 +91,7 @@ const evaluate = (
         );
       }
       return evaluate(resolve(code), context, isText);
-    });
+    }) as any;
   }
 
   if (isComputed(code)) {
@@ -100,20 +101,55 @@ const evaluate = (
   if (isValue(code)) {
     if (typeof code === "string") {
       const ast = parse(isText ? textToCode(code) : code);
+      if (ast === null) return undefined;
       return evaluateAST(ast, context);
     }
     return code;
   }
 
   if (isScope(code) || isBlock(code)) {
-    const values = Object.keys(code.values).reduce(
+    const keys = Object.keys(code.values);
+    const values = keys.reduce(
       (res, k) => ({ ...res, [k]: evaluate(code.values[k], context, false) }),
       {}
     );
     const newContext = { ...context, ...values };
     const items = code.items.map((x) => evaluate(x, newContext, true));
-    if (isScope(code)) return items[0];
-    return { values, items };
+    // if (isScope(code)) return items[0];
+    // return { values, items };
+    if (
+      keys.every((k) => values[k] === undefined || !isSignal(values[k])) &&
+      items.every((x) => x === undefined || !isSignal(x))
+    ) {
+      const filteredItems = items.filter(
+        (x) => x !== undefined
+      ) as SignalData[];
+      if (isScope(code)) return filteredItems[0];
+      const filteredValues = keys.reduce(
+        (res, k) =>
+          values[k] === undefined ? res : { ...res, [k]: values[k] },
+        {}
+      );
+      return { values: filteredValues, items: filteredItems };
+    } else {
+      const definedKeys = computed(() =>
+        JSON.stringify([
+          keys.map((k) => values[k] !== undefined),
+          items.map((x) => x !== undefined),
+        ])
+      );
+      return computed(() => {
+        const [dKeys, dItems] = JSON.parse(resolve(definedKeys));
+        if (isScope(code)) return items.find((_, i) => dItems[i])!;
+        return {
+          values: keys.reduce(
+            (res, k, i) => (dKeys[i] ? { ...res, [k]: values[k] } : res),
+            {}
+          ),
+          items: items.filter((_, i) => dItems[i]) as SignalData[],
+        };
+      });
+    }
   }
 
   throw new Error();

@@ -9,7 +9,7 @@ const grammar = String.raw`Maraca {
     = ternary
 
   ternary
-    = ternary space* "?" space* or space* ":" space* or -- ternary
+    = or space* "?" space* or space* ":" space* ternary -- ternary
     | or
 
   or
@@ -179,8 +179,9 @@ s.addAttribute("ast", {
 export default (script) => {
   const m = g.match(script);
   if (m.failed()) {
-    console.error(m.message);
-    throw new Error("Parser error");
+    // console.warn(m.message);
+    // throw new Error("Parser error");
+    return null;
   }
   return s(m).ast;
 };

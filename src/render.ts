@@ -1,11 +1,13 @@
 import {
+  type Atom,
   type Data,
+  type SemiData,
   type SignalData,
   isAtom,
   isValue,
   valueToString,
 } from "./types";
-import { effect, resolve, resolveToAtom } from "./signal";
+import { computed, effect, resolve, resolveToAtom } from "./signal";
 
 interface Context {
   size: number;
@@ -13,38 +15,40 @@ interface Context {
   inline: "inline" | "wrap" | false;
 }
 
-const isInline = (data: SignalData) => isAtom(data) || isValue(data);
+const isInline = (data: SemiData) =>
+  isValue(data) || (data.values.input && isAtom(data.values.input));
 
 const getHandlers = (
   values: Record<string, SignalData>,
-  hoverAtom: SignalData
+  inputAtom?: Atom<SignalData>,
+  hoverAtom?: Atom<SignalData>,
+  focusAtom?: Atom<SignalData>
 ) => {
   const res: any = {};
 
-  if (isAtom(hoverAtom)) {
+  if (inputAtom) {
+    res.onkeypress = (e) => {
+      if (e.key === "Enter") e.preventDefault();
+    };
+    res.oninput = (e) => inputAtom.set(e.target.innerText);
+  }
+
+  if (hoverAtom) {
     res.onmouseover = () => hoverAtom.set(true);
     res.onmouseleave = () => hoverAtom.set(false);
+  }
+
+  if (focusAtom) {
+    res.onfocus = () => focusAtom.set(true);
+    res.onblur = () => focusAtom.set(false);
   }
 
   return res;
 };
 
-const getItems = (
-  items: SignalData[],
-  values: Record<string, SignalData>
-): SignalData[] => {
-  const flow = values.flow && resolve(values.flow);
-  if ((flow && flow !== "inline") || (values.gap && resolve(values.gap))) {
-    return items.map((x) =>
-      isInline(x) ? { __type: "block", values: {}, items: [x] } : x
-    );
-  }
-  return items;
-};
-
 const getContext = (
   values: Record<string, SignalData>,
-  items: SignalData[],
+  inlineItems: boolean,
   context: Context
 ): Context => {
   const size = values.size && resolve(values.size);
@@ -55,7 +59,7 @@ const getContext = (
     line: (line as number) || context.line,
     inline: context.inline
       ? "inline"
-      : flow === "inline" || items.some((x) => isInline(x))
+      : flow === "inline" || inlineItems
         ? "wrap"
         : false,
   };
@@ -63,6 +67,10 @@ const getContext = (
 
 const getProps = (values: Record<string, Data>, handlers: any) => {
   const res: any = { ...handlers };
+
+  if (handlers.oninput) {
+    res.contentEditable = "true";
+  }
 
   return res;
 };
@@ -74,12 +82,7 @@ const directions = (v) => [
   v.values.bottom ?? v.items[2] ?? v.items[0],
   v.values.left ?? v.items[1] ?? v.items[0],
 ];
-const getStyle = (
-  values: Record<string, Data>,
-  handlers,
-  node,
-  context: Context
-) => {
+const getStyle = (values: Record<string, Data>, context: Context) => {
   const res: any = {};
 
   if (context.inline === "inline") {
@@ -101,11 +104,6 @@ const getStyle = (
   }
   if (values.width) {
     res.width = values.width;
-  }
-
-  if (handlers.oninput) {
-    res.height = node.scrollHeight + "px";
-    res.overflowY = "hidden";
   }
 
   res.fontSize = `${context.size}px`;
@@ -158,48 +156,7 @@ const updateChildren = (node, children) => {
   }
 };
 
-const createEditNode = () => {
-  const wrap = document.createElement("span");
-  wrap.style.position = "relative";
-  wrap.style.display = "flex";
-
-  const text = document.createElement("span");
-  text.style.display = "flex";
-  text.style.visibility = "hidden";
-
-  const input = document.createElement("textarea");
-  input.style.position = "absolute";
-  input.style.top = "0";
-  input.style.left = "0";
-  input.style.width = "100%";
-  input.style.height = "100%";
-
-  wrap.replaceChildren(text, input);
-  return wrap;
-};
-
-const updateNode = (effect, node, signal: SignalData, context: Context) => {
-  if (isAtom(signal)) {
-    const res = node?.__atom === signal ? node : createEditNode();
-    res.__atom = signal;
-    if (!res.childNodes[1].oninput) {
-      res.childNodes[1].oninput = (e) => signal.set(e.target.value);
-    }
-    effect(() => {
-      const text = valueToString(resolve(signal));
-      const html = text.replace(/\n/g, "<br>").replace(/ /g, "&nbsp");
-      if (res.childNodes[0].innerHTML !== html) {
-        res.childNodes[0].innerHTML = html;
-      }
-      if (res.childNodes[1].value !== text) {
-        res.childNodes[1].value = text;
-      }
-    });
-    return res;
-  }
-
-  const data = resolve(signal);
-
+const updateNode = (effect, node, data: SemiData, context: Context) => {
   if (isValue(data)) {
     const text = valueToString(data);
     const res =
@@ -208,48 +165,75 @@ const updateNode = (effect, node, signal: SignalData, context: Context) => {
     return res;
   }
 
-  const hoverAtom = data.values.hover && resolveToAtom(data.values.hover);
-
   const tag = "div";
-  const items = getItems(
-    data.items.map((x) => resolveToAtom(x)),
-    data.values
-  );
-  const newContext = getContext(data.values, items, context);
   const res =
     node?.nodeName.toLowerCase() === tag ? node : document.createElement(tag);
-  const handlers = getHandlers(data.values, hoverAtom);
 
-  effect(() => {
-    const values = Object.keys(data.values).reduce(
-      (res, k) => ({ ...res, [k]: resolve(data.values[k], true) }),
-      {}
+  const inlineInfo = computed(() => {
+    const flow = data.values.flow && resolve(data.values.flow);
+    const wrapItems =
+      (flow && flow !== "inline") ||
+      (data.values.gap && resolve(data.values.gap))
+        ? data.items.map((x) => isInline(resolve(x)))
+        : [];
+    const inlineItems = data.items.some(
+      (x, i) => !wrapItems[i] && isInline(resolve(x))
     );
-    res.__props = onChanged(
-      res.__props || {},
-      getProps(values, handlers),
-      (k, v) => {
-        if (k === "focus") {
-          if (v) setTimeout(() => res.focus());
-        } else {
-          res[k] = v === null || v === undefined ? null : v;
-        }
-      }
-    );
-    res.__style = onChanged(
-      res.__style || {},
-      getStyle(values, handlers, res, newContext),
-      (k, v) => {
-        res.style[k] = v || null;
-      }
-    );
+    return JSON.stringify([wrapItems, inlineItems]);
   });
 
+  const inputAtom = data.values.input
+    ? resolveToAtom(data.items[0])
+    : undefined;
+  const hoverAtom = data.values.hover
+    ? resolveToAtom(data.values.hover)
+    : undefined;
+  const focusAtom = data.values.focus
+    ? resolveToAtom(data.values.focus)
+    : undefined;
+  const handlers = getHandlers(data.values, inputAtom, hoverAtom, focusAtom);
+
   effect(() => {
-    updateChildren(
-      res,
-      items.map((x, i) => updateNode(effect, res.childNodes[i], x, newContext))
+    const [wrapItems, inlineItems] = JSON.parse(resolve(inlineInfo));
+    const items = data.items.map((x, i) =>
+      wrapItems[i] ? { values: {}, items: [x] } : x
     );
+    const newContext = getContext(data.values, inlineItems, context);
+
+    effect(() => {
+      const values = Object.keys(data.values).reduce(
+        (res, k) => ({ ...res, [k]: resolve(data.values[k], true) }),
+        {}
+      );
+      res.__props = onChanged(
+        res.__props || {},
+        getProps(values, handlers),
+        (k, v) => {
+          if (k === "focus") {
+            if (v) setTimeout(() => res.focus());
+          } else {
+            res[k] = v === null || v === undefined ? null : v;
+          }
+        }
+      );
+      res.__style = onChanged(
+        res.__style || {},
+        getStyle(values, newContext),
+        (k, v) => {
+          res.style[k] = v || null;
+        }
+      );
+    });
+
+    effect(() => {
+      const children = items.map((x, i) =>
+        updateNode(effect, res.childNodes[i], resolve(x), newContext)
+      );
+      updateChildren(
+        res,
+        handlers.oninput ? children.filter((x) => x.textContent) : children
+      );
+    });
   });
 
   return res;
@@ -258,7 +242,7 @@ const updateNode = (effect, node, signal: SignalData, context: Context) => {
 export default (root, data: SignalData, size = 16, line = 1.5) => {
   effect((effect) => {
     updateChildren(root, [
-      updateNode(effect, root.childNodes[0], resolveToAtom(data), {
+      updateNode(effect, root.childNodes[0], resolve(data), {
         size,
         line,
         inline: false,

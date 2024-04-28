@@ -35,3 +35,7 @@ select {
   background-color: transparent;
   color: inherit;
 }
+
+div[contenteditable="true"] {
+  outline: none;
+}
