@@ -17,9 +17,12 @@ export const escapeText = (v) =>
 export const unescapeText = (v) =>
   typeof v === "string" ? v.replace(/\\{/g, "{") : v;
 
-export const textToCode = (v) =>
+export const textToCode = (v) => (typeof v === "string" ? `±${v}` : v);
+export const codeToText = (v) => (typeof v === "string" ? v.slice(1) : v);
+
+export const simpleTextToCode = (v) =>
   typeof v === "string" ? `'${v.replace(/'/g, "\\'")}'` : v;
-export const codeToText = (v) =>
+export const simpleCodeToText = (v) =>
   typeof v === "string" ? v.slice(1, -1).replace(/\\'/, "'") : v;
 
 const isTruthy = (x) => !(x === false || x === null);
@@ -86,8 +89,8 @@ const evaluate = (
       if (resolve(canWrap)) {
         return wrap(
           code,
-          (v) => (isText ? unescapeText(v) : codeToText(v)),
-          (v) => (isText ? escapeText(v) : textToCode(v))
+          (v) => (isText ? unescapeText(v) : simpleCodeToText(v)),
+          (v) => (isText ? escapeText(v) : simpleTextToCode(v))
         );
       }
       return evaluate(resolve(code), context, isText);

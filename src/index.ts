@@ -16,17 +16,6 @@ const code = {
   ],
 };
 
-// const code: SignalCode = {
-//   type: "scope",
-//   values: { hover: atom(false) },
-//   items: [
-//     {
-//       values: { hover: "hover +", color: "hover ? 'red' : 'green'" },
-//       items: [atom("Hi there"), "another"],
-//     },
-//   ],
-// };
-
 render(
   document.getElementById("app"),
   {

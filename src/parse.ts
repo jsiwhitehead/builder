@@ -50,8 +50,16 @@ const grammar = String.raw`Maraca {
     | atom
 
   atom
-    = string | number | boolean | label | brackets
+    = item | string | number | boolean | label | brackets
 
+  item
+    = "±" (s_value | i_chunk)*
+
+  i_chunk
+    = (i_char | escape)+
+
+  i_char
+    = ~("\\" | "{") any
 
   string
     = "'" (s_value | s_chunk)* "'"
@@ -140,6 +148,18 @@ s.addAttribute("ast", {
   apply: (a) => a.ast,
 
   atom: (a) => a.ast,
+
+  item: (_1, a) =>
+    a.ast.length === 0 || a.ast.length === 1
+      ? a.ast[0] || { type: "value", value: "" }
+      : { type: "operation", operation: "concat", nodes: a.ast },
+
+  i_chunk: (a) => ({
+    type: "value",
+    value: a.sourceString.replace(/\\(.)/g, (_, a) => a),
+  }),
+
+  i_char: (_) => null,
 
   string: (_1, a, _2) =>
     a.ast.length === 0 || a.ast.length === 1
